@@ -1,0 +1,34 @@
+# Exclude the large training dataset — not needed to run the app
+dataset/
+
+# Exclude Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Exclude virtual environments
+venv/
+env/
+.venv/
+
+# Exclude training script (not needed to serve the app)
+train_model.py
+
+# Exclude git files
+.git/
+.gitignore
+
+# Exclude IDE/editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Exclude OS files
+.DS_Store
+Thumbs.db
+
+# Exclude any local uploads (container will create fresh)
+static/uploads/

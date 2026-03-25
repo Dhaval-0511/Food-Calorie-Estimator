@@ -1,0 +1,428 @@
+================================================================================
+         FOOD CALORIE ESTIMATOR — COMPLETE PROJECT DOCUMENTATION
+================================================================================
+
+PROJECT NAME   : Food Calorie Estimator
+TYPE           : AI-Powered Web Application (Machine Learning + Web Backend)
+PURPOSE        : Upload a food photo → AI identifies the food → Estimates calories
+AUTHOR         : Dhaval
+DATE           : March 2026
+
+================================================================================
+  1. PROJECT OVERVIEW
+================================================================================
+
+The Food Calorie Estimator is a deep learning-powered web application that
+allows users to upload a photograph of food and receive:
+  - The name of the food item (from 5 supported classes)
+  - The estimated calorie count per serving
+  - The model's confidence percentage in its prediction
+
+This project demonstrates the full ML pipeline: from data preparation and model
+training, to serving predictions through a web API and a browser-based UI.
+
+================================================================================
+  2. SUPPORTED FOOD CLASSES
+================================================================================
+
+The model is trained to recognize the following 5 food categories:
+
+  1. 🍔 Hamburger       — ~295 calories per serving
+  2. 🍕 Pizza           — ~285 calories per serving
+  3. 🍟 French Fries    — ~312 calories per serving
+  4. 🥪 Club Sandwich   — ~250 calories per serving
+  5. 🥗 Caesar Salad    — ~150 calories per serving
+
+These classes are from the Food-101 benchmark dataset. The calorie values are
+average per-serving estimates stored in the calories.json database.
+
+================================================================================
+  3. MACHINE LEARNING — THEORY & CONCEPTS USED
+================================================================================
+
+--- 3.1 Transfer Learning ---
+  Transfer Learning is an ML technique where a model trained on one large
+  dataset is reused as the starting point for a model on a different task.
+  Instead of training from scratch (which requires millions of images and
+  weeks of compute), we take a model pre-trained on ImageNet (1.2 million
+  images, 1000 classes) and adapt it to our 5-class food problem.
+
+  WHY: Our dataset is small (~200 images per class). Training from scratch
+  would lead to overfitting. Transfer learning lets us leverage learned
+  low-level features (edges, textures, shapes) from ImageNet.
+
+--- 3.2 MobileNetV2 (Base Architecture) ---
+  MobileNetV2 is a lightweight Convolutional Neural Network (CNN) architecture
+  developed by Google. It uses:
+    - Inverted Residual Blocks: Expands channels, applies depthwise convolution,
+      then projects back — very efficient on CPU/mobile hardware.
+    - Depthwise Separable Convolutions: Splits standard convolution into two
+      cheaper operations, drastically reducing parameters.
+    - Linear Bottlenecks: Avoids non-linear activation in bottleneck layers to
+      preserve information.
+
+  Input shape  : 224 × 224 × 3 (RGB image)
+  Pre-trained  : ImageNet weights (imagenet)
+  Trainable    : FALSE (all base layers are FROZEN)
+
+--- 3.3 Fine-Tuning / Feature Extraction ---
+  We use the feature extraction mode of transfer learning:
+    - The MobileNetV2 base is frozen (weights not updated during training)
+    - Only our custom classification head is trained
+  This prevents catastrophic forgetting and is faster to train.
+
+--- 3.4 Custom Classification Head ---
+  On top of the frozen MobileNetV2 base, we add:
+    - GlobalAveragePooling2D : Converts the 7×7 feature map to a 1D vector
+                               (reduces parameters, avoids overfitting)
+    - Dense(128, ReLU)       : Fully connected layer, 128 neurons
+    - Dense(5, Softmax)      : Output layer — 5 neurons for 5 food classes
+                               Softmax gives probability distribution (sums to 1)
+
+--- 3.5 CNN (Convolutional Neural Network) ---
+  CNNs are the backbone of image classification. They learn hierarchical
+  spatial features:
+    - Early layers  : detect edges, corners, textures
+    - Middle layers : detect object parts (circles, curves)
+    - Deep layers   : detect high-level concepts (eyes, wheels, buns)
+  MobileNetV2 is a specific CNN architecture optimized for speed.
+
+--- 3.6 Data Augmentation ---
+  To artificially expand training data and improve generalization, we apply
+  random transformations to input images during training:
+    - rotation_range=15     : Rotate image up to ±15 degrees
+    - width_shift_range=0.1 : Horizontal shift up to 10%
+    - height_shift_range=0.1: Vertical shift up to 10%
+    - horizontal_flip=True  : Random left-right mirror
+    - zoom_range=0.1        : Random zoom in/out by 10%
+    - rescale=1/255         : Normalize pixel values from [0,255] to [0,1]
+
+--- 3.7 Loss Function & Optimizer ---
+  Loss     : Categorical Crossentropy
+             Used for multi-class classification. Measures how far the predicted
+             probability distribution is from the true one-hot label.
+
+  Optimizer: Adam (Adaptive Moment Estimation)
+             Combines momentum and RMSProp. Adapts learning rate per parameter.
+             Learning Rate = 0.001
+
+  Metric   : Accuracy (proportion of correctly classified images)
+
+--- 3.8 Softmax & Argmax (Inference) ---
+  At prediction time:
+    - The model outputs a vector of 5 probabilities (via Softmax)
+    - np.argmax() finds the class index with highest probability
+    - That index maps to the food class name (CLASSES list, alphabetically sorted)
+    - The max probability × 100 = confidence percentage shown to user
+
+--- 3.9 Overfitting & Why We Used 200 Images/Class ---
+  Overfitting occurs when a model memorizes training data and fails on new data.
+  With only 200 images per class (1000 total), combined with:
+    - Frozen base model (no full retraining)
+    - Data augmentation
+    - Dropout-like effect of GlobalAveragePooling
+  ...we mitigate overfitting effectively for a demo-scale project.
+
+--- 3.10 Training / Validation Split ---
+  We use an 80/20 split:
+    - 80% of images → Training set (model learns from these)
+    - 20% of images → Validation set (model evaluated on these, unseen)
+  This allows us to monitor val_accuracy to detect overfitting.
+
+================================================================================
+  4. TECH STACK
+================================================================================
+
+  CATEGORY          TECHNOLOGY           VERSION     PURPOSE
+  ─────────────────────────────────────────────────────────────────────
+  ML Framework      TensorFlow / Keras   2.21.0      Model training & inference
+  CNN Architecture  MobileNetV2          —           Pre-trained base model
+  Image Processing  Pillow (PIL)         10.0.0      Load, resize, convert images
+  Numerical Ops     NumPy                >=1.26.0    Array ops, normalization
+  Web Framework     Flask                2.3.3       HTTP server, routing, templates
+  WSGI Server       Gunicorn             21.2.0      Production-grade app server
+  Templating        Jinja2               (via Flask) HTML rendering with Python vars
+  Frontend          HTML5 + CSS3 + JS    —           User interface in browser
+  Containerization  Docker               Latest      Package & deploy app anywhere
+  Language          Python               3.10        All backend code
+  Dataset           Food-101             —           Source of training images
+
+================================================================================
+  5. PROJECT FILES — PURPOSE OF EACH FILE
+================================================================================
+
+  FILE                  PURPOSE
+  ─────────────────────────────────────────────────────────────────────────────
+
+  train_model.py        ML Training Script
+                        - Reads Food-101 dataset images from dataset/images/
+                        - Filters and copies 200 images per class into
+                          dataset/filtered/
+                        - Creates ImageDataGenerators for train and validation
+                        - Loads MobileNetV2 (ImageNet weights, frozen)
+                        - Adds custom Dense classification head
+                        - Trains for 5 epochs using Adam + Categorical CE loss
+                        - Saves trained weights to model/food_model.h5
+                        RUN THIS ONCE before starting the web app.
+
+  app.py                Flask Web Application (Backend)
+                        - Loads the saved model (food_model.h5) at startup
+                        - Loads calorie database (calories.json)
+                        - Serves the web UI at http://localhost:5000
+                        - Accepts image upload via POST /
+                        - Preprocesses image: resize to 224×224, normalize [0,1]
+                        - Runs model.predict() and maps result to class name
+                        - Returns food name, calorie count, confidence % to UI
+                        - Saves uploaded image to static/uploads/ for display
+
+  calories.json         Calorie Database
+                        - Simple JSON key-value store
+                        - Maps food class name → calories per serving (integer)
+                        - Example: {"hamburger": 295, "pizza": 285, ...}
+                        - Loaded once at app startup, queried per prediction
+
+  templates/index.html  Frontend UI (Jinja2 Template)
+                        - Full browser-based user interface
+                        - Drag-and-drop or click-to-upload image area
+                        - Food class badge pills (Hamburger, Pizza, etc.)
+                        - Predict button to submit the form
+                        - Displays result: food name, calories, confidence bar
+                        - Displays uploaded image preview
+                        - Error messages for invalid uploads or model issues
+                        - Styled with dark theme, gradients, animations
+
+  static/               Static Assets Folder
+                        - static/uploads/ : Stores uploaded images temporarily
+                          so the app can display the image alongside results
+                        - Other CSS/JS assets if any
+
+  dataset/              Training Dataset (NOT included in Docker image)
+                        - dataset/images/ : Original Food-101 images per class
+                        - dataset/filtered/ : Filtered 200 images/class used
+                          for training (created by train_model.py)
+                        - This folder is in .dockerignore — not needed to run
+
+  model/                Trained Model Storage
+                        - model/food_model.h5 : Saved Keras model in HDF5 format
+                        - Contains all layer configs + trained weights
+                        - Generated by train_model.py, loaded by app.py
+                        - Included in Docker image
+
+  Dockerfile            Docker Build Instructions
+                        - Defines the container environment step by step
+                        - Based on python:3.10-slim (lightweight Linux)
+                        - Installs system libraries for TensorFlow + Pillow
+                        - Installs Python packages from requirements.txt
+                        - Copies app files into container
+                        - Exposes port 5000
+                        - Starts app with Gunicorn on container boot
+
+  requirements.txt      Python Dependencies List
+                        - Lists all pip packages and versions needed
+                        - Used by Docker during build and for local setup
+                        - Ensures reproducible environments
+
+  .dockerignore         Docker Exclusion Rules
+                        - Tells Docker what NOT to copy into the image
+                        - Excludes: dataset/ (huge, not needed for inference)
+                        - Excludes: __pycache__/, .git/, venv/, etc.
+                        - Keeps Docker image size minimal
+
+================================================================================
+  6. HOW THE PROJECT WORKS — END TO END FLOW
+================================================================================
+
+  PHASE 1: TRAINING (run once locally)
+  ─────────────────────────────────────
+  1. train_model.py reads 200 images per class from Food-101 dataset
+  2. ImageDataGenerator applies augmentation + normalization
+  3. MobileNetV2 (pretrained, frozen) extracts image features
+  4. Custom Dense head learns to classify those features into 5 classes
+  5. Model trains for 5 epochs, saving best weights to food_model.h5
+
+  PHASE 2: INFERENCE (every time user uploads an image)
+  ──────────────────────────────────────────────────────
+  1. User opens browser → http://localhost:5000
+  2. User uploads or drag-drops a food image
+  3. Flask receives the file via POST request
+  4. app.py saves the file, opens it with Pillow
+  5. Image is resized to 224×224 pixels (MobileNetV2 input size)
+  6. Pixels normalized: divided by 255.0 → values in [0.0, 1.0]
+  7. Batch dimension added: shape becomes (1, 224, 224, 3)
+  8. model.predict() runs forward pass through the neural network
+  9. Output: softmax vector of 5 probabilities, e.g. [0.02, 0.91, 0.04, 0.02, 0.01]
+  10. np.argmax() → index 1 → 'club_sandwich' (alphabetical mapping)
+  11. Confidence = max probability × 100 = 91%
+  12. calories_db['club_sandwich'] = 250
+  13. Flask renders index.html with result dict → shown to user
+
+================================================================================
+  7. RUNNING THE PROJECT
+================================================================================
+
+  ── OPTION A: RUN LOCALLY (Python) ──────────────────────────────────────────
+
+  PREREQUISITES:
+    - Python 3.10 installed
+    - pip packages installed (see requirements.txt)
+    - Model already trained (food_model.h5 exists)
+
+  STEP 1 — Install dependencies (first time only):
+    pip install -r requirements.txt
+
+  STEP 2 — Train the model (first time only):
+    python train_model.py
+    (Takes 10–30 minutes. Creates model/food_model.h5)
+
+  STEP 3 — Start the web server:
+    python app.py
+
+  STEP 4 — Open browser:
+    http://127.0.0.1:5000
+
+  ── OPTION B: RUN WITH DOCKER (Recommended) ──────────────────────────────────
+
+  PREREQUISITES:
+    - Docker Desktop installed: https://www.docker.com/products/docker-desktop/
+    - Docker Desktop is RUNNING (whale icon in taskbar)
+    - Model already trained (model/food_model.h5 must exist before building)
+
+  STEP 1 — Navigate to project folder:
+    cd "d:\Dhavalrp\Desktop\ml project"
+
+  STEP 2 — Build Docker image (first time, takes 10–15 min):
+    docker build -t food-calorie-estimator .
+
+  STEP 3 — Run the container:
+    docker run -p 5000:5000 food-calorie-estimator
+
+  STEP 4 — Open browser:
+    http://localhost:5000
+
+  STEP 5 — Stop the container:
+    Press Ctrl+C in the terminal
+
+  ── DOCKER USEFUL COMMANDS ───────────────────────────────────────────────────
+    docker images                          → List all built images
+    docker ps                              → List running containers
+    docker stop <container_id>             → Stop a running container
+    docker run -d -p 5000:5000 food-calorie-estimator  → Run in background
+    docker rmi food-calorie-estimator      → Delete the image
+
+  ── TRANSFER TO ANOTHER PC ───────────────────────────────────────────────────
+    # Export image to file (on current PC):
+    docker save -o food-calorie-estimator.tar food-calorie-estimator
+
+    # Import on new PC (only Docker needed, no Python/TF install!):
+    docker load -i food-calorie-estimator.tar
+    docker run -p 5000:5000 food-calorie-estimator
+
+================================================================================
+  8. MODEL ARCHITECTURE SUMMARY
+================================================================================
+
+  Layer                    Output Shape          Parameters
+  ─────────────────────────────────────────────────────────
+  InputLayer               (None, 224, 224, 3)   0
+  MobileNetV2 (frozen)     (None, 7, 7, 1280)    2,257,984  (not trained)
+  GlobalAveragePooling2D   (None, 1280)           0
+  Dense (ReLU, 128)        (None, 128)            163,968    (trained)
+  Dense (Softmax, 5)       (None, 5)              645        (trained)
+  ─────────────────────────────────────────────────────────
+  Total trainable params   : ~164,613
+  Total frozen params      : ~2,257,984
+
+  Training: 5 epochs, batch_size=16, optimizer=Adam(lr=0.001)
+  Train split: 80% (160 images/class), Val split: 20% (40 images/class)
+
+================================================================================
+  9. KEY ML TERMS GLOSSARY
+================================================================================
+
+  TERM                   MEANING
+  ─────────────────────────────────────────────────────────────────────────────
+  CNN                    Convolutional Neural Network — detects spatial patterns
+  Transfer Learning      Reuse weights from a model trained on a larger dataset
+  Fine-Tuning            Unfreeze + retrain some layers of a pre-trained model
+  Feature Extraction     Use frozen pre-trained model as a fixed feature extractor
+  MobileNetV2            Lightweight CNN architecture by Google (efficient on CPU)
+  ImageNet               Large dataset of 1.2M images, 1000 classes (used to
+                         pre-train MobileNetV2)
+  Epoch                  One full pass through all training data
+  Batch Size             Number of images processed before weights update (=16)
+  Softmax                Activation that converts raw scores to probabilities (sum=1)
+  Argmax                 Returns index of the highest value in an array
+  GlobalAveragePooling   Reduces feature map to vector by averaging spatial dims
+  Overfitting            Model memorizes training data, fails on new data
+  Augmentation           Random image transforms to artificially increase data
+  Normalization          Scale pixel values [0,255] → [0,1] for stable training
+  One-Hot Encoding       Class label as vector: class 2 of 5 → [0,0,1,0,0]
+  Categorical CE Loss    Loss function for multi-class softmax classification
+  Adam Optimizer         Adaptive learning rate optimizer (momentum + RMSProp)
+  Inference              Using a trained model to make predictions on new data
+  .h5 / HDF5 format      File format for saving entire Keras model (weights+config)
+  WSGI                   Web Server Gateway Interface — protocol Gunicorn uses
+  Gunicorn               Production Python WSGI HTTP server (replaces Flask dev)
+  Docker                 Containerization tool — packages app + environment together
+  Container              Isolated runtime environment created from a Docker image
+
+================================================================================
+  10. PROJECT LIMITATIONS & FUTURE SCOPE
+================================================================================
+
+  CURRENT LIMITATIONS:
+    - Only 5 food classes supported (can be extended to all 101 Food-101 classes)
+    - 200 training images per class (more data = better accuracy)
+    - Calorie estimates are fixed averages (not portion-size aware)
+    - No GPU support in Docker (CPU inference only)
+    - Flask dev server is single-threaded locally
+
+  FUTURE IMPROVEMENTS:
+    - Add more food classes (extend to 50 or all 101 classes)
+    - Fine-tune MobileNetV2 top layers for better accuracy
+    - Integrate a nutrition API (e.g., USDA FoodData Central) for exact calories
+    - Add portion size estimation using object detection (YOLO / EfficientDet)
+    - Deploy to cloud (AWS ECS, Google Cloud Run, Azure ACI) using Docker image
+    - Add user accounts, history tracking, daily calorie counter
+    - Mobile app frontend using React Native
+
+================================================================================
+  END OF DOCUMENTATION
+================================================================================
+
+Yes, absolutely! All three are fully implemented in this project:
+
+✅ ML Model (TensorFlow / Keras)
+MobileNetV2 CNN trained using Transfer Learning on Food-101 images
+Model trained in 
+
+train_model.py
+, saved as 
+
+model/food_model.h5
+Uses Softmax output over 5 food classes with Adam optimizer
+✅ Image Classification
+Classic multi-class image classification task (5 categories)
+Input: 224×224 RGB image → Output: food class + confidence %
+Pipeline: upload → Pillow resize → NumPy normalize → model.predict() → Argmax → class label
+✅ Flask Web Backend
+
+app.py
+ serves the full web app using Flask
+Handles image upload via POST / route
+Runs inference and passes results to the HTML template via Jinja2
+In Docker, served via Gunicorn (production WSGI server)
+So yes — this is a complete ML + Flask + Image Classification project. The full flow is:
+
+User uploads image
+       ↓
+Flask (app.py) receives it
+       ↓
+Pillow resizes to 224×224 → NumPy normalizes to [0,1]
+       ↓
+TensorFlow model.predict() → softmax probabilities
+       ↓
+Argmax → food class → lookup calories.json
+       ↓
+Flask renders result back to browser
+It's a solid end-to-end ML web application! 🎯

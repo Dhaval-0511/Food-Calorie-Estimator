@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Food Calorie Estimator — AI Powered</title>
+  <meta name="description" content="Upload a food photo and instantly get the food name, calorie count, and AI confidence using MobileNetV2 deep learning."/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-dark:       #0a0e1a;
+      --bg-card:       rgba(255, 255, 255, 0.05);
+      --bg-card-hover: rgba(255, 255, 255, 0.08);
+      --border:        rgba(255, 255, 255, 0.10);
+      --border-glow:   rgba(99, 179, 237, 0.4);
+      --accent-1:      #63b3ed;
+      --accent-2:      #b794f4;
+      --accent-3:      #68d391;
+      --text-primary:  #f0f4ff;
+      --text-secondary:#94a3b8;
+      --text-muted:    #64748b;
+      --success:       #48bb78;
+      --error:         #fc8181;
+      --shadow-glow:   0 0 40px rgba(99, 179, 237, 0.15);
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg-dark);
+      color: var(--text-primary);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      overflow-x: hidden;
+    }
+
+    /* Animated gradient orbs */
+    body::before, body::after {
+      content: '';
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(80px);
+      z-index: 0;
+      animation: orb-float 8s ease-in-out infinite alternate;
+    }
+    body::before {
+      width: 500px; height: 500px;
+      background: radial-gradient(circle, rgba(99,179,237,0.12) 0%, transparent 70%);
+      top: -100px; left: -100px;
+    }
+    body::after {
+      width: 400px; height: 400px;
+      background: radial-gradient(circle, rgba(183,148,244,0.10) 0%, transparent 70%);
+      bottom: -100px; right: -100px;
+      animation-delay: -4s;
+    }
+    @keyframes orb-float {
+      from { transform: translate(0, 0) scale(1); }
+      to   { transform: translate(30px, 20px) scale(1.05); }
+    }
+
+    /* ── Header ── */
+    header {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      padding: 32px 24px 0;
+      text-align: center;
+    }
+    .logo-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: linear-gradient(135deg, rgba(99,179,237,0.15), rgba(183,148,244,0.15));
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 6px 16px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--accent-1);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      margin-bottom: 20px;
+    }
+    .logo-badge span { font-size: 16px; }
+    h1 {
+      font-size: clamp(2rem, 5vw, 3.2rem);
+      font-weight: 800;
+      line-height: 1.15;
+      background: linear-gradient(135deg, #f0f4ff 0%, var(--accent-1) 50%, var(--accent-2) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 12px;
+    }
+    .subtitle {
+      font-size: 16px;
+      color: var(--text-secondary);
+      max-width: 500px;
+      margin: 0 auto 32px;
+      line-height: 1.6;
+    }
+
+    /* ── Main Card ── */
+    main {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 600px;
+      padding: 0 20px 60px;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 36px;
+      backdrop-filter: blur(20px);
+      box-shadow: var(--shadow-glow), 0 24px 48px rgba(0,0,0,0.4);
+      transition: box-shadow 0.3s ease;
+    }
+    .card:hover { box-shadow: 0 0 60px rgba(99,179,237,0.20), 0 24px 48px rgba(0,0,0,0.4); }
+
+    /* ── Upload Zone ── */
+    .upload-zone {
+      position: relative;
+      border: 2px dashed rgba(99,179,237,0.3);
+      border-radius: 16px;
+      padding: 40px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      background: rgba(99,179,237,0.03);
+    }
+    .upload-zone:hover, .upload-zone.drag-over {
+      border-color: var(--accent-1);
+      background: rgba(99,179,237,0.07);
+      transform: scale(1.01);
+    }
+    .upload-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+    .upload-icon {
+      font-size: 48px;
+      margin-bottom: 12px;
+      display: block;
+      animation: float 3s ease-in-out infinite;
+    }
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50%       { transform: translateY(-6px); }
+    }
+    .upload-text {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-primary);
+      margin-bottom: 6px;
+    }
+    .upload-hint {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+    .upload-hint strong { color: var(--accent-1); }
+
+    /* Selected file name */
+    #file-name {
+      margin-top: 12px;
+      font-size: 13px;
+      color: var(--accent-3);
+      font-weight: 500;
+      min-height: 20px;
+      transition: opacity 0.3s;
+    }
+
+    /* ── Supported Classes ── */
+    .classes-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 20px 0;
+      justify-content: center;
+    }
+    .class-pill {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 4px 12px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+
+    /* ── Submit Button ── */
+    .btn-predict {
+      width: 100%;
+      padding: 16px;
+      margin-top: 8px;
+      border: none;
+      border-radius: 14px;
+      background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+      color: #fff;
+      font-family: 'Inter', sans-serif;
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+    }
+    .btn-predict::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(135deg, rgba(255,255,255,0.15), transparent);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .btn-predict:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(99,179,237,0.35); }
+    .btn-predict:hover::after { opacity: 1; }
+    .btn-predict:active { transform: translateY(0); }
+
+    /* ── Error Banner ── */
+    .error-banner {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: rgba(252, 129, 129, 0.1);
+      border: 1px solid rgba(252, 129, 129, 0.3);
+      border-radius: 12px;
+      padding: 14px 18px;
+      margin-top: 20px;
+      font-size: 14px;
+      color: var(--error);
+      font-weight: 500;
+    }
+
+    /* ── Result Section ── */
+    .result-section {
+      margin-top: 28px;
+      animation: slide-up 0.5s ease forwards;
+    }
+    @keyframes slide-up {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .result-image-wrap {
+      position: relative;
+      border-radius: 16px;
+      overflow: hidden;
+      margin-bottom: 24px;
+      border: 1px solid var(--border);
+    }
+    .result-image-wrap img {
+      width: 100%;
+      max-height: 280px;
+      object-fit: cover;
+      display: block;
+      transition: transform 0.4s ease;
+    }
+    .result-image-wrap:hover img { transform: scale(1.03); }
+    .result-image-overlay {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      background: linear-gradient(to top, rgba(10,14,26,0.9), transparent);
+      padding: 20px 20px 16px;
+    }
+    .result-food-name {
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--text-primary);
+      text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+    .stat-card {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 18px;
+      text-align: center;
+      transition: all 0.3s ease;
+    }
+    .stat-card:hover {
+      background: rgba(255,255,255,0.07);
+      border-color: rgba(255,255,255,0.15);
+      transform: translateY(-2px);
+    }
+    .stat-icon { font-size: 24px; margin-bottom: 8px; display: block; }
+    .stat-value {
+      font-size: 26px;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      display: block;
+      margin-bottom: 4px;
+    }
+    .stat-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 600;
+    }
+
+    /* Confidence bar */
+    .confidence-bar-wrap {
+      margin-top: 18px;
+    }
+    .confidence-bar-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    }
+    .confidence-bar-track {
+      height: 8px;
+      background: rgba(255,255,255,0.08);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .confidence-bar-fill {
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--accent-1), var(--accent-2));
+      transition: width 1s ease;
+    }
+
+    /* ── Try Again ── */
+    .btn-reset {
+      display: block;
+      text-align: center;
+      margin-top: 20px;
+      padding: 12px;
+      background: transparent;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      color: var(--text-secondary);
+      font-family: 'Inter', sans-serif;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.3s;
+      width: 100%;
+    }
+    .btn-reset:hover {
+      background: rgba(255,255,255,0.05);
+      color: var(--text-primary);
+      border-color: rgba(255,255,255,0.2);
+    }
+
+    /* ── Footer ── */
+    footer {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+      padding: 0 24px 32px;
+      color: var(--text-muted);
+      font-size: 12px;
+      line-height: 1.8;
+    }
+    footer strong { color: var(--text-secondary); }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo-badge"><span>🧠</span> MobileNetV2 · Transfer Learning</div>
+  <h1>Food Calorie Estimator</h1>
+  <p class="subtitle">Upload a food photo and get instant AI-powered food recognition with calorie estimation.</p>
+</header>
+
+<main>
+  <div class="card">
+
+    <!-- ── Upload Form (shown when no result) ── -->
+    {% if not result %}
+    <form method="POST" enctype="multipart/form-data" id="predict-form">
+
+      <div class="upload-zone" id="upload-zone">
+        <input type="file" name="file" id="file-input" accept=".jpg,.jpeg,.png,.webp,.bmp" required />
+        <span class="upload-icon">📷</span>
+        <p class="upload-text">Click or drag & drop a food image</p>
+        <p class="upload-hint">Supports <strong>JPG, PNG, WebP</strong> · Any size</p>
+        <div id="file-name"></div>
+      </div>
+
+      <div class="classes-row">
+        <span class="class-pill">🍔 Hamburger</span>
+        <span class="class-pill">🍕 Pizza</span>
+        <span class="class-pill">🍟 French Fries</span>
+        <span class="class-pill">🥪 Club Sandwich</span>
+        <span class="class-pill">🥗 Caesar Salad</span>
+      </div>
+
+      <button type="submit" class="btn-predict" id="submit-btn">
+        ⚡ Predict Food &amp; Calories
+      </button>
+    </form>
+    {% endif %}
+
+    <!-- ── Error Banner ── -->
+    {% if error %}
+    <div class="error-banner">⚠️ {{ error }}</div>
+    <button class="btn-reset" onclick="window.location='/'">← Try again</button>
+    {% endif %}
+
+    <!-- ── Result Section ── -->
+    {% if result %}
+    <div class="result-section">
+
+      <div class="result-image-wrap">
+        <img src="{{ result.image }}" alt="Uploaded food: {{ result.food }}" />
+        <div class="result-image-overlay">
+          <div class="result-food-name">{{ result.food }}</div>
+        </div>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <span class="stat-icon">🔥</span>
+          <span class="stat-value">{{ result.calories }}</span>
+          <span class="stat-label">Calories (kcal)</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-icon">🎯</span>
+          <span class="stat-value">{{ result.confidence }}%</span>
+          <span class="stat-label">Confidence</span>
+        </div>
+      </div>
+
+      <div class="confidence-bar-wrap">
+        <div class="confidence-bar-label">
+          <span>Model Confidence</span>
+          <span>{{ result.confidence }}%</span>
+        </div>
+        <div class="confidence-bar-track">
+          <div class="confidence-bar-fill" style="width: {{ result.confidence }}%"></div>
+        </div>
+      </div>
+
+      <button class="btn-reset" onclick="window.location='/'">← Predict another food</button>
+    </div>
+    {% endif %}
+
+  </div>
+</main>
+
+<footer>
+  <strong>Food Calorie Estimator</strong> · Built with TensorFlow, MobileNetV2 &amp; Flask<br/>
+  Trained on Food-101 · 5 classes · Transfer Learning
+</footer>
+
+<script>
+  // Show file name on selection
+  const fileInput = document.getElementById('file-input');
+  const fileNameEl = document.getElementById('file-name');
+  if (fileInput) {
+    fileInput.addEventListener('change', () => {
+      const name = fileInput.files[0]?.name || '';
+      if (name) fileNameEl.textContent = '📎 ' + name;
+    });
+  }
+
+  // Drag & drop highlight
+  const zone = document.getElementById('upload-zone');
+  if (zone) {
+    zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over'); });
+    zone.addEventListener('dragleave', () => zone.classList.remove('drag-over'));
+    zone.addEventListener('drop', e => {
+      e.preventDefault();
+      zone.classList.remove('drag-over');
+      if (e.dataTransfer.files.length) {
+        fileInput.files = e.dataTransfer.files;
+        fileNameEl.textContent = '📎 ' + e.dataTransfer.files[0].name;
+      }
+    });
+  }
+
+  // Loading state on submit
+  const form = document.getElementById('predict-form');
+  const btn = document.getElementById('submit-btn');
+  if (form) {
+    form.addEventListener('submit', () => {
+      btn.textContent = '⏳ Analyzing image...';
+      btn.disabled = true;
+      btn.style.opacity = '0.8';
+    });
+  }
+</script>
+</body>
+</html>
